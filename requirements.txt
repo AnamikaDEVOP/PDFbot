@@ -14,3 +14,4 @@ InstructorEmbedding==1.0.1
 sentence-transformers==2.2.2
 chromadb
 langchain_community
+tqdm
