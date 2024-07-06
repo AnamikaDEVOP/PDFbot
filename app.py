@@ -2,38 +2,17 @@ import streamlit as st
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from sentence_transformers import SentenceTransformer
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
-from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-from htmlTemplates import css, bot_template, user_template
-from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-from requests.exceptions import ReadTimeout
-import requests
+from langchain_community.llms import HuggingFaceHub
+import time
 
-# Function to handle retry logic
-def requests_retry_session(
-    retries=3,
-    backoff_factor=0.3,
-    status_forcelist=(500, 502, 504),
-    session=None,
-):
-    session = session or requests.Session()
-    retry = Retry(
-        total=retries,
-        read=retries,
-        connect=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=status_forcelist,
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    return session
+# Load environment variables
+load_dotenv()
 
+# Function to extract text from PDFs
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -42,6 +21,7 @@ def get_pdf_text(pdf_docs):
             text += page.extract_text()
     return text
 
+# Function to split text into chunks
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -52,29 +32,36 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
+# Function to create vector store
 def get_vectorstore(text_chunks):
-    # Adding retry logic and increased timeout
-    try:
-        embeddings = HuggingFaceInstructEmbeddings(
-            model_name="hkunlp/instructor-xl",
-            timeout=30  # Increased timeout
-        )
-    except ReadTimeout:
-        st.error("Connection to Hugging Face timed out. Please try again later.")
-        return None
-    
-    vectorstore = FAISS.from_texts(text_chunks, embeddings)
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
+# Function to get LLM
 def get_llm():
-    llm = ChatOpenAI()  # Example, replace with appropriate model or hub usage
-    return llm
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            llm = HuggingFaceHub(
+                repo_id="google/flan-t5-xxl",
+                model_kwargs={"temperature": 0.5, "max_length": 512}
+            )
+            return llm
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(5)  # Wait for 5 seconds before retrying
+            else:
+                st.error(f"Failed to initialize LLM after {max_retries} attempts. Error: {str(e)}")
+                return None
 
+# Function to set up the conversation chain
 def get_conversation_chain(vectorstore):
     llm = get_llm()
-    memory = ConversationBufferMemory(
-        memory_key='chat_history', return_messages=True
-    )
+    if llm is None:
+        return None
+    
+    memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=vectorstore.as_retriever(),
@@ -82,43 +69,52 @@ def get_conversation_chain(vectorstore):
     )
     return conversation_chain
 
+# Function to handle user input
 def handle_userinput(user_question):
+    if st.session_state.conversation is None:
+        st.warning("Please process the documents first.")
+        return
+    
     response = st.session_state.conversation({'question': user_question})
     st.session_state.chat_history = response['chat_history']
 
     for i, message in enumerate(st.session_state.chat_history):
         if i % 2 == 0:
-            st.write(user_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+            st.write(f"Human: {message.content}")
         else:
-            st.write(bot_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+            st.write(f"AI: {message.content}")
 
+# Main function
 def main():
-    load_dotenv()
     st.set_page_config(page_title="Chat with multiple PDFs", page_icon=":books:")
-    st.write(css, unsafe_allow_html=True)
+    st.header("Chat with multiple PDFs :books:")
 
+    # Initialize session state
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    st.header("Chat with multiple PDFs :books:")
-    user_question = st.text_input("Ask a question about your documents:")
-    if user_question:
-        handle_userinput(user_question)
-
+    # Sidebar for document upload
     with st.sidebar:
         st.subheader("Your documents")
         pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
         if st.button("Process"):
             with st.spinner("Processing"):
+                # Get PDF text
                 raw_text = get_pdf_text(pdf_docs)
+                # Get the text chunks
                 text_chunks = get_text_chunks(raw_text)
+                # Create vector store
                 vectorstore = get_vectorstore(text_chunks)
-                if vectorstore:
-                    st.session_state.conversation = get_conversation_chain(vectorstore)
+                # Create conversation chain
+                st.session_state.conversation = get_conversation_chain(vectorstore)
+                st.success("Documents processed successfully!")
+
+    # User input
+    user_question = st.text_input("Ask a question about your documents:")
+    if user_question:
+        handle_userinput(user_question)
 
 if __name__ == '__main__':
     main()
