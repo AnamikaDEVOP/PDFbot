@@ -1,5 +1,4 @@
 import streamlit as st
-from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -7,7 +6,8 @@ from langchain.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_community.llms import HuggingFaceHub
-import time
+import os
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -34,46 +34,21 @@ def get_text_chunks(text):
 
 # Function to create vector store
 def get_vectorstore(text_chunks):
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
 # Function to get LLM
-import sys
-import traceback
-
 def get_llm():
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            from langchain_community.llms import HuggingFaceHub
-            llm = HuggingFaceHub(
-                repo_id="google/flan-t5-base",  # Using a smaller model
-                model_kwargs={"temperature": 0.5, "max_length": 512}
-            )
-            return llm
-        except ImportError as e:
-            st.error(f"ImportError: {str(e)}")
-            st.error("Please ensure you have installed all required packages.")
-            st.error("Try running: pip install langchain huggingface_hub")
-            return None
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(5)
-            else:
-                st.error(f"Failed to initialize LLM after {max_retries} attempts.")
-                st.error(f"Error type: {type(e).__name__}")
-                st.error(f"Error message: {str(e)}")
-                st.error("Traceback:")
-                st.error(traceback.format_exc())
-                return None
+    llm = HuggingFaceHub(
+        repo_id="facebook/bart-large-mnli",
+        model_kwargs={"temperature": 0.5, "max_length": 512}
+    )
+    return llm
 
 # Function to set up the conversation chain
 def get_conversation_chain(vectorstore):
     llm = get_llm()
-    if llm is None:
-        return None
-    
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
@@ -84,10 +59,6 @@ def get_conversation_chain(vectorstore):
 
 # Function to handle user input
 def handle_userinput(user_question):
-    if st.session_state.conversation is None:
-        st.warning("Please process the documents first.")
-        return
-    
     response = st.session_state.conversation({'question': user_question})
     st.session_state.chat_history = response['chat_history']
 
