@@ -9,8 +9,30 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
 from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from requests.exceptions import ReadTimeout
-import time
+import requests
+
+# Function to handle retry logic
+def requests_retry_session(
+    retries=3,
+    backoff_factor=0.3,
+    status_forcelist=(500, 502, 504),
+    session=None,
+):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -31,7 +53,16 @@ def get_text_chunks(text):
     return chunks
 
 def get_vectorstore(text_chunks):
-    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    # Adding retry logic and increased timeout
+    try:
+        embeddings = HuggingFaceInstructEmbeddings(
+            model_name="hkunlp/instructor-xl",
+            timeout=30  # Increased timeout
+        )
+    except ReadTimeout:
+        st.error("Connection to Hugging Face timed out. Please try again later.")
+        return None
+    
     vectorstore = FAISS.from_texts(text_chunks, embeddings)
     return vectorstore
 
@@ -86,7 +117,8 @@ def main():
                 raw_text = get_pdf_text(pdf_docs)
                 text_chunks = get_text_chunks(raw_text)
                 vectorstore = get_vectorstore(text_chunks)
-                st.session_state.conversation = get_conversation_chain(vectorstore)
+                if vectorstore:
+                    st.session_state.conversation = get_conversation_chain(vectorstore)
 
 if __name__ == '__main__':
     main()
