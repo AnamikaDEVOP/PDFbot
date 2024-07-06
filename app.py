@@ -8,6 +8,7 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
+from langchain.embeddings.huggingface import HuggingFaceInstructEmbeddings
 from requests.exceptions import ReadTimeout
 import time
 
@@ -30,35 +31,13 @@ def get_text_chunks(text):
     return chunks
 
 def get_vectorstore(text_chunks):
-    # Load pre-trained Sentence Transformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    
-    # Compute embeddings for text chunks
-    embeddings = [model.encode(chunk) for chunk in text_chunks]
-    
-    # Initialize FAISS vector store
-    vectorstore = FAISS.from_texts(text_chunks, HuggingFaceEmbeddings(model))
+    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    vectorstore = FAISS.from_texts(text_chunks, embeddings)
     return vectorstore
 
-from langchain_community.llms import HuggingFaceHub
-
 def get_llm():
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            llm = HuggingFaceHub(
-                repo_id="google/flan-t5-xxl",
-                model_kwargs={
-                    "temperature": 0.5,
-                    "max_length": 512
-                }
-            )
-            return llm
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(5)  # Wait for 5 seconds before retrying
-            else:
-                raise e
+    llm = ChatOpenAI()  # Example, replace with appropriate model or hub usage
+    return llm
 
 def get_conversation_chain(vectorstore):
     llm = get_llm()
