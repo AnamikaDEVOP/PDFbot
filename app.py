@@ -39,20 +39,33 @@ def get_vectorstore(text_chunks):
     return vectorstore
 
 # Function to get LLM
+import sys
+import traceback
+
 def get_llm():
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            from langchain_community.llms import HuggingFaceHub
             llm = HuggingFaceHub(
-                repo_id="google/flan-t5-xxl",
+                repo_id="google/flan-t5-base",  # Using a smaller model
                 model_kwargs={"temperature": 0.5, "max_length": 512}
             )
             return llm
+        except ImportError as e:
+            st.error(f"ImportError: {str(e)}")
+            st.error("Please ensure you have installed all required packages.")
+            st.error("Try running: pip install langchain huggingface_hub")
+            return None
         except Exception as e:
             if attempt < max_retries - 1:
-                time.sleep(5)  # Wait for 5 seconds before retrying
+                time.sleep(5)
             else:
-                st.error(f"Failed to initialize LLM after {max_retries} attempts. Error: {str(e)}")
+                st.error(f"Failed to initialize LLM after {max_retries} attempts.")
+                st.error(f"Error type: {type(e).__name__}")
+                st.error(f"Error message: {str(e)}")
+                st.error("Traceback:")
+                st.error(traceback.format_exc())
                 return None
 
 # Function to set up the conversation chain
