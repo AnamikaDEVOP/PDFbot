@@ -49,10 +49,17 @@ def get_text_chunks(text):
     return chunks
 
 def get_vectorstore(text_chunks):
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    embeddings = [model.encode(chunk) for chunk in text_chunks]
-    vectorstore = FAISS(dim=model.get_sentence_embedding_dimension())
-    vectorstore.index(embeddings)
+    model_name = 'sentence-transformers/all-MiniLM-L6-v2'
+    model_kwargs = {'device': 'cpu'}
+    encode_kwargs = {'normalize_embeddings': False}
+    hf_embeddings = HuggingFaceEmbeddings(
+        model_name=model_name,
+        model_kwargs=model_kwargs,
+        encode_kwargs=encode_kwargs
+    )
+    
+    # Create and return the FAISS index
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=hf_embeddings)
     return vectorstore
 
 def get_llm():
