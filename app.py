@@ -51,7 +51,7 @@ def get_text_chunks(text):
 def get_vectorstore(text_chunks):
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = [model.encode(chunk) for chunk in text_chunks]
-    vectorstore = Chroma.from_embeddings(embeddings, texts=text_chunks)
+    vectorstore = Chroma.from_texts(texts=text_chunks, embedding_function=model.encode)
     return vectorstore
 
 def get_llm():
