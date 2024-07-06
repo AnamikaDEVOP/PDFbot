@@ -2,25 +2,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.embeddings.huggingface import HuggingFaceInstructEmbeddings
-from langchain.vectorstores import Chroma
-from sentence_transformers import SentenceTransformer
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-
-
-#from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
-from langchain.vectorstores import FAISS
-from langchain_community.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from htmlTemplates import css, bot_template, user_template
-from langchain.llms import HuggingFaceHub
-
-import streamlit as st
-from dotenv import load_dotenv
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from langchain.vectorstores import FAISS
 from langchain_community.chat_models import ChatOpenAI
@@ -49,35 +30,15 @@ def get_text_chunks(text):
     return chunks
 
 def get_vectorstore(text_chunks):
-    model_name = 'sentence-transformers/all-MiniLM-L6-v2'
-    model_kwargs = {'device': 'cpu'}
-    encode_kwargs = {'normalize_embeddings': False}
-    hf_embeddings = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs
-    )
-    
-    # Create and return the FAISS index
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=hf_embeddings)
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = [model.encode(chunk) for chunk in text_chunks]
+    vectorstore = FAISS()
+    vectorstore.index(embeddings)
     return vectorstore
 
 def get_llm():
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            llm = HuggingFaceHub(
-                repo_id="google/flan-t5-xxl",
-                task="text2text-generation",
-                model_kwargs={"temperature": 0.5, "max_length": 512},
-                timeout=60  # Increase timeout
-            )
-            return llm
-        except ReadTimeout:
-            if attempt < max_retries - 1:
-                time.sleep(5)  # Wait for 5 seconds before retrying
-            else:
-                raise
+    llm = ChatOpenAI()  # Example, replace with appropriate model or hub usage
+    return llm
 
 def get_conversation_chain(vectorstore):
     llm = get_llm()
