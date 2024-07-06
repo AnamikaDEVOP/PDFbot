@@ -6,12 +6,10 @@ openai==0.27.6
 faiss-cpu==1.7.4
 altair==4
 tiktoken==0.4.0
-langchain_community
-
-
 # uncomment to use huggingface llms
 huggingface-hub==0.14.1
 
 # uncomment to use instructor embeddings
 InstructorEmbedding==1.0.1
 sentence-transformers==2.2.2
+chromadb
