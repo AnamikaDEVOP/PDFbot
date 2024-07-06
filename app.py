@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from sentence_transformers import SentenceTransformer
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS
 from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
@@ -51,7 +51,8 @@ def get_text_chunks(text):
 def get_vectorstore(text_chunks):
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = [model.encode(chunk) for chunk in text_chunks]
-    vectorstore = Chroma.from_texts(texts=text_chunks, embedding_function=model.encode)
+    vectorstore = FAISS(dim=model.get_sentence_embedding_dimension())
+    vectorstore.index(embeddings)
     return vectorstore
 
 def get_llm():
