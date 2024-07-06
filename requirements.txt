@@ -17,3 +17,5 @@ sentence-transformers==2.2.2
 sentence_transformers
 
 langchain_community
+transformers 
+torch

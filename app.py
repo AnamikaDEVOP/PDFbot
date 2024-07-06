@@ -1,16 +1,13 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-from langchain_community.llms import HuggingFaceHub
-import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+from langchain.llms import HuggingFacePipeline
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from sentence_transformers import SentenceTransformer
+import torch
 
 # Function to extract text from PDFs
 def get_pdf_text(pdf_docs):
@@ -34,17 +31,29 @@ def get_text_chunks(text):
 
 # Function to create vector store
 def get_vectorstore(text_chunks):
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    embeddings = SentenceTransformer('all-MiniLM-L6-v2')
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings.encode)
     return vectorstore
 
 # Function to get LLM
+@st.cache_resource
 def get_llm():
-    llm = HuggingFaceHub(
-        repo_id="facebook/bart-large-mnli",
-        model_kwargs={"temperature": 0.5, "max_length": 512}
+    model_name = "distilgpt2"  # This is a smaller, faster model
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    
+    pipe = pipeline(
+        "text-generation",
+        model=model, 
+        tokenizer=tokenizer, 
+        max_length=512,
+        temperature=0.7,
+        top_p=0.95,
+        repetition_penalty=1.15
     )
-    return llm
+    
+    local_llm = HuggingFacePipeline(pipeline=pipe)
+    return local_llm
 
 # Function to set up the conversation chain
 def get_conversation_chain(vectorstore):
