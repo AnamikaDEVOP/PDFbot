@@ -8,6 +8,7 @@ from langchain.llms import HuggingFacePipeline
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from langchain.embeddings import HuggingFaceEmbeddings
 import torch
+import traceback
 
 # Function to extract text from PDFs
 def get_pdf_text(pdf_docs):
