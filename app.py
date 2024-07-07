@@ -38,7 +38,7 @@ def get_vectorstore(text_chunks):
 # Function to get LLM
 @st.cache_resource
 def get_llm():
-    model_name = "gpt2-medium"  # Using a larger model
+    model_name = "gpt2-medium"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
     
@@ -46,10 +46,13 @@ def get_llm():
         "text-generation",
         model=model, 
         tokenizer=tokenizer, 
-        max_length=2048,  # Increased max length
+        max_length=1024,  # Reduced back to 1024 for stability
         temperature=0.7,
         top_p=0.95,
-        repetition_penalty=1.15
+        repetition_penalty=1.2,
+        num_return_sequences=1,
+        do_sample=True,
+        pad_token_id=tokenizer.eos_token_id  # Add this line
     )
     
     local_llm = HuggingFacePipeline(pipeline=pipe)
@@ -60,23 +63,35 @@ def get_conversation_chain(vectorstore):
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectorstore.as_retriever(),
-        memory=memory
+        retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
+        memory=memory,
+        get_chat_history=lambda h: h,
+        verbose=True,
+        max_tokens_limit=1024  # Add this line
     )
     return conversation_chain
 
 def handle_userinput(user_question):
+    st.write("Processing your question...")
     try:
         response = st.session_state.conversation({'question': user_question})
         st.session_state.chat_history = response['chat_history']
         
+        st.write("Chat History:")
         for i, message in enumerate(st.session_state.chat_history):
             if i % 2 == 0:
                 st.write(f"Human: {message.content}")
             else:
                 st.write(f"AI: {message.content}")
+        
+        # Print additional debug information
+        st.write("Debug Information:")
+        st.write(f"Question: {user_question}")
+        st.write(f"Answer: {response['answer']}")
+        st.write(f"Source Documents: {response['source_documents']}")
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
+        st.error(f"Traceback: {traceback.format_exc()}")
 
 def main():
     st.set_page_config(page_title="Chat with multiple PDFs", page_icon=":books:")
