@@ -47,7 +47,7 @@ def get_llm():
         "text-generation",
         model=model, 
         tokenizer=tokenizer, 
-        max_length=1024,  # Reduced back to 1024 for stability
+        max_length=2048,  # Reduced back to 1024 for stability
         temperature=0.7,
         top_p=0.95,
         repetition_penalty=1.2,
@@ -68,7 +68,7 @@ def get_conversation_chain(vectorstore):
         memory=memory,
         get_chat_history=lambda h: h,
         verbose=True,
-        max_tokens_limit=1500  # Add this line
+        max_tokens_limit=2048  # Add this line
     )
     return conversation_chain
 
