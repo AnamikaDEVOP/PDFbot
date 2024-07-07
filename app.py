@@ -38,7 +38,7 @@ def get_vectorstore(text_chunks):
 # Function to get LLM
 @st.cache_resource
 def get_llm():
-    model_name = "distilgpt2"  # This is a smaller, faster model
+    model_name = "gpt2-medium"  # Using a larger model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
     
@@ -46,7 +46,7 @@ def get_llm():
         "text-generation",
         model=model, 
         tokenizer=tokenizer, 
-        max_length=512,
+        max_length=1024,  # Increased max length
         temperature=0.7,
         top_p=0.95,
         repetition_penalty=1.15
@@ -55,7 +55,6 @@ def get_llm():
     local_llm = HuggingFacePipeline(pipeline=pipe)
     return local_llm
 
-# Function to set up the conversation chain
 def get_conversation_chain(vectorstore):
     llm = get_llm()
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
@@ -66,45 +65,48 @@ def get_conversation_chain(vectorstore):
     )
     return conversation_chain
 
-# Function to handle user input
 def handle_userinput(user_question):
-    response = st.session_state.conversation({'question': user_question})
-    st.session_state.chat_history = response['chat_history']
+    try:
+        response = st.session_state.conversation({'question': user_question})
+        st.session_state.chat_history = response['chat_history']
+        
+        for i, message in enumerate(st.session_state.chat_history):
+            if i % 2 == 0:
+                st.write(f"Human: {message.content}")
+            else:
+                st.write(f"AI: {message.content}")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
 
-    for i, message in enumerate(st.session_state.chat_history):
-        if i % 2 == 0:
-            st.write(f"Human: {message.content}")
-        else:
-            st.write(f"AI: {message.content}")
-
-# Main function
 def main():
     st.set_page_config(page_title="Chat with multiple PDFs", page_icon=":books:")
     st.header("Chat with multiple PDFs :books:")
 
-    # Initialize session state
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    # Sidebar for document upload
     with st.sidebar:
         st.subheader("Your documents")
         pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
         if st.button("Process"):
             with st.spinner("Processing"):
-                # Get PDF text
-                raw_text = get_pdf_text(pdf_docs)
-                # Get the text chunks
-                text_chunks = get_text_chunks(raw_text)
-                # Create vector store
-                vectorstore = get_vectorstore(text_chunks)
-                # Create conversation chain
-                st.session_state.conversation = get_conversation_chain(vectorstore)
-                st.success("Documents processed successfully!")
+                try:
+                    raw_text = get_pdf_text(pdf_docs)
+                    st.write(f"Extracted {len(raw_text)} characters of text.")
+                    
+                    text_chunks = get_text_chunks(raw_text)
+                    st.write(f"Created {len(text_chunks)} text chunks.")
+                    
+                    vectorstore = get_vectorstore(text_chunks)
+                    st.write("Vector store created successfully.")
+                    
+                    st.session_state.conversation = get_conversation_chain(vectorstore)
+                    st.success("Documents processed successfully!")
+                except Exception as e:
+                    st.error(f"An error occurred during processing: {str(e)}")
 
-    # User input
     user_question = st.text_input("Ask a question about your documents:")
     if user_question:
         handle_userinput(user_question)
