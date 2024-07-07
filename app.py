@@ -39,7 +39,7 @@ def get_vectorstore(text_chunks):
 # Function to get LLM
 @st.cache_resource
 def get_llm():
-    model_name = "gpt2-medium"
+    model_name = "facebook/bart-large"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
     
@@ -68,7 +68,7 @@ def get_conversation_chain(vectorstore):
         memory=memory,
         get_chat_history=lambda h: h,
         verbose=True,
-        max_tokens_limit=1024  # Add this line
+        max_tokens_limit=1500  # Add this line
     )
     return conversation_chain
 
