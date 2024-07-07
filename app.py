@@ -22,8 +22,8 @@ def get_pdf_text(pdf_docs):
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=2000,
+        chunk_overlap=400,
         length_function=len
     )
     chunks = text_splitter.split_text(text)
@@ -46,7 +46,7 @@ def get_llm():
         "text-generation",
         model=model, 
         tokenizer=tokenizer, 
-        max_length=1024,  # Increased max length
+        max_length=2048,  # Increased max length
         temperature=0.7,
         top_p=0.95,
         repetition_penalty=1.15
